@@ -70,6 +70,7 @@ export function toolSpec({ root, allow = [], exec = run } = {}) {
           height: { type: 'number' },
           bytes: { type: 'number' },
           count: { type: 'number' },
+          dir: { type: 'string' },
           files: { type: 'array', items: { type: 'object' } },
           why: { type: 'string' },
         },
@@ -82,9 +83,9 @@ export function toolSpec({ root, allow = [], exec = run } = {}) {
         }
         if (out.action === 'list') {
           const list = Array.isArray(out.files) ? out.files : []
-          if (!list.length) return [{ type: 'text', text: 'media/ 里现在没有图。' }]
+          if (!list.length) return [{ type: 'text', text: `media/ 里现在没有图。（看的是 ${out.dir}）` }]
           const lines = list.map((f) => `- ${f.name}（${Math.max(1, Math.round(f.bytes / 1024))} KB，${f.at}）`)
-          return [{ type: 'text', text: `media/ 里有这些图（新的在前，共 ${out.count} 张）：\n${lines.join('\n')}\n要看哪张就把它给 info / crop / label。` }]
+          return [{ type: 'text', text: `media/ 里有这些图（新的在前，共 ${out.count} 张；看的是 ${out.dir}）：\n${lines.join('\n')}\n要看哪张就把它给 info / crop / label。` }]
         }
         return [{ type: 'text', text: `已做好：${out.path}\n要贴进对话就照抄这一行：${out.markdown}` }]
       },
@@ -105,6 +106,7 @@ export function toolSpec({ root, allow = [], exec = run } = {}) {
           return {
             ok: true,
             action,
+            dir: toSlashes(mediaDir(root)),
             count: rows.length,
             files: rows.map((r) => ({ name: r.name, bytes: r.bytes, at: fmt(r.mtime) })),
           }

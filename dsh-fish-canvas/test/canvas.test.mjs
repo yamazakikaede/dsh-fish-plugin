@@ -121,6 +121,7 @@ test('真链路：造图 → 看尺寸 → 裁 → 拼 → 写字（缺工具的
     const listed = await spec.execute({ action: 'list' })
     assert.equal(listed.ok, true, listed.why)
     assert.ok(listed.count >= 1)
+    assert.ok(String(listed.dir).endsWith('/media'), 'list 要说清看的是哪个目录')
     assert.ok(listed.files.some((f) => f.name.startsWith('canvas-crop-')))
 
     const stitched = await spec.execute({ action: 'stitch', src: base, files: [base, base], direction: 'horizontal', gap: 10 })
