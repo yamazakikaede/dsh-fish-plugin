@@ -178,3 +178,30 @@ export async function info(exec, file) {
   const st = await fsp.stat(file)
   return { ...dims, bytes: st.size }
 }
+
+const IMAGE_EXT = /\.(png|jpe?g|webp|gif)$/i
+
+/**
+ * 列一个目录里的图（新的在前）。只认图片扩展名，不递归。
+ * 给她「我看不见那个目录」一个能看的入口。
+ */
+export async function listImages(dir, { limit = 20 } = {}) {
+  let names = []
+  try {
+    names = await fsp.readdir(dir)
+  } catch {
+    return []
+  }
+  const rows = []
+  for (const name of names) {
+    if (!IMAGE_EXT.test(name)) continue
+    try {
+      const st = await fsp.stat(join(dir, name))
+      if (!st.isFile()) continue
+      rows.push({ name, bytes: st.size, mtime: st.mtimeMs })
+    } catch { /* 读不到就跳过 */ }
+  }
+  rows.sort((a, b) => b.mtime - a.mtime)
+  const n = clampInt(limit, 1, 100, 20)
+  return rows.slice(0, n)
+}

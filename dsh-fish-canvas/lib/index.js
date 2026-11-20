@@ -1,33 +1,36 @@
 /**
  * dsh-fish-canvas —— 给大肥鱼一把改图的刀
  *
- * 一个工具 `her_canvas`，四种动作：
+ * 一个工具 `her_canvas`，五种动作：
  *   crop    裁出一块
  *   label   在图上写一行字
  *   stitch  把几张拼在一起
  *   info    看这张图多大
+ *   list    看 media/ 里有哪些图（她看不见目录时的入口）
  *
- * 只读她自己的数据目录与临时目录；产物落在 `<数据目录>/canvas/<日期>/`。
+ * 只读她自己的数据目录与临时目录；产物落在 `<数据目录>/media/`，
+ * 和 bili_watch 的拼图放在一起——那里她认得，也读得到。
  * 不写事件流、不改配置、不联网。
  */
 import { homedir, tmpdir } from 'node:os'
 import { join } from 'node:path'
 
-import { makeInputGuard, outputFor, ensureDir, toSlashes } from './paths.js'
-import { run, info, crop, label, stitch } from './ops.js'
+import { makeInputGuard, outputFor, ensureDir, mediaDir, toSlashes } from './paths.js'
+import { run, info, crop, label, stitch, listImages } from './ops.js'
 
 export const name = 'dsh-fish-canvas'
 export const inject = ['tools']
 
-export const ACTIONS = Object.freeze(['crop', 'label', 'stitch', 'info'])
+export const ACTIONS = Object.freeze(['crop', 'label', 'stitch', 'info', 'list'])
 
 const DESCRIPTION =
-  '给她一把改图的刀：action 选 crop / label / stitch / info。'
+  '给她一把改图的刀：action 选 crop / label / stitch / info / list。'
   + 'crop 从一张图里裁出一块（src + x/y/w/h，坐标是像素，左上角为 0）；'
   + 'label 在图上写一行字（src + text，可选 size 字号 / color 颜色 / position 放上中下）；'
   + 'stitch 把 2–6 张图拼成一排（files + direction 横或竖，可选 gap 间隔）；'
-  + 'info 看一张图的尺寸。'
-  + '只改数据目录和临时目录里的图；成品落在数据目录的 canvas/ 下，并回你一行可直接贴进对话的 markdown 图片。'
+  + 'info 看一张图的尺寸；list 看 media/ 里有哪些图（新的在前，可带 limit）。'
+  + '只改数据目录和临时目录里的图；成品落在数据目录的 media/ 下（和 bili_watch 的拼图同一个地方），'
+  + '并回你一行可直接贴进对话的 markdown 图片。'
 
 export function toolSpec({ root, allow = [], exec = run } = {}) {
   const check = makeInputGuard({ root, allow })
@@ -50,6 +53,7 @@ export function toolSpec({ root, allow = [], exec = run } = {}) {
         files: { type: 'array', items: { type: 'string' }, description: 'stitch 要拼的图（2–6 张）。' },
         direction: { type: 'string', enum: ['horizontal', 'vertical'], description: 'stitch 横着拼还是竖着拼。' },
         gap: { type: 'integer', description: 'stitch 的间隔像素（0–200，默认 8）。' },
+        limit: { type: 'integer', description: 'list 最多列几张（1–100，默认 20）。' },
       },
       required: ['action'],
       additionalProperties: false,
@@ -65,6 +69,8 @@ export function toolSpec({ root, allow = [], exec = run } = {}) {
           width: { type: 'number' },
           height: { type: 'number' },
           bytes: { type: 'number' },
+          count: { type: 'number' },
+          files: { type: 'array', items: { type: 'object' } },
           why: { type: 'string' },
         },
         required: ['ok'],
@@ -73,6 +79,12 @@ export function toolSpec({ root, allow = [], exec = run } = {}) {
         if (!out?.ok) return [{ type: 'text', text: String(out?.why || '没做成。') }]
         if (out.action === 'info') {
           return [{ type: 'text', text: `${out.path}：${out.width}×${out.height}，${out.bytes} 字节` }]
+        }
+        if (out.action === 'list') {
+          const list = Array.isArray(out.files) ? out.files : []
+          if (!list.length) return [{ type: 'text', text: 'media/ 里现在没有图。' }]
+          const lines = list.map((f) => `- ${f.name}（${Math.max(1, Math.round(f.bytes / 1024))} KB，${f.at}）`)
+          return [{ type: 'text', text: `media/ 里有这些图（新的在前，共 ${out.count} 张）：\n${lines.join('\n')}\n要看哪张就把它给 info / crop / label。` }]
         }
         return [{ type: 'text', text: `已做好：${out.path}\n要贴进对话就照抄这一行：${out.markdown}` }]
       },
@@ -83,6 +95,21 @@ export function toolSpec({ root, allow = [], exec = run } = {}) {
         return { ok: false, why: `action 只能是 ${ACTIONS.join(' / ')}。` }
       }
       try {
+        if (action === 'list') {
+          const rows = await listImages(mediaDir(root), { limit: args?.limit })
+          const fmt = (ms) => {
+            const d = new Date(Number(ms) || Date.now())
+            const p = (n) => String(n).padStart(2, '0')
+            return `${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`
+          }
+          return {
+            ok: true,
+            action,
+            count: rows.length,
+            files: rows.map((r) => ({ name: r.name, bytes: r.bytes, at: fmt(r.mtime) })),
+          }
+        }
+
         if (action === 'info') {
           const file = check(args?.src)
           const d = await info(exec, file)

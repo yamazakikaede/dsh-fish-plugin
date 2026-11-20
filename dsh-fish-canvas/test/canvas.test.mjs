@@ -8,7 +8,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
 import { isInside, outputFor, dateKey, makeInputGuard, toSlashes } from '../lib/paths.js'
-import { clampInt, validColor, sanitizeText, stitchPlan, probe, info, run } from '../lib/ops.js'
+import { clampInt, validColor, sanitizeText, stitchPlan, probe, info, listImages, run } from '../lib/ops.js'
 import { toolSpec } from '../lib/index.js'
 
 // ---------------------------------------------------------------- 纯函数
@@ -25,7 +25,7 @@ test('产物路径：日期目录 + 动作 + 时间 + 哈希，两次不撞名',
   const a = outputFor('/root', 'crop', { date: d1, seed: 'x' })
   const b = outputFor('/root', 'crop', { date: d1, seed: 'y' })
   assert.equal(dateKey(d1), '2026-11-20')
-  assert.match(a.file, /\/root\/canvas\/2026-11-20\/crop-210506-[0-9a-f]{6}\.png$/)
+  assert.match(a.file, /\/root\/media\/canvas-crop-20261120-210506-[0-9a-f]{6}\.png$/)
   assert.notEqual(a.file, b.file)
 })
 
@@ -115,7 +115,13 @@ test('真链路：造图 → 看尺寸 → 裁 → 拼 → 写字（缺工具的
     assert.equal(cropped.ok, true, cropped.why)
     assert.equal(cropped.width, 200)
     assert.equal(cropped.height, 150)
+    assert.ok(cropped.path.includes('/media/canvas-crop-'), '产物应落在 media/ 下')
     assert.ok((await stat(cropped.path)).size > 0)
+
+    const listed = await spec.execute({ action: 'list' })
+    assert.equal(listed.ok, true, listed.why)
+    assert.ok(listed.count >= 1)
+    assert.ok(listed.files.some((f) => f.name.startsWith('canvas-crop-')))
 
     const stitched = await spec.execute({ action: 'stitch', src: base, files: [base, base], direction: 'horizontal', gap: 10 })
     assert.equal(stitched.ok, true, stitched.why)
@@ -131,4 +137,21 @@ test('真链路：造图 → 看尺寸 → 裁 → 拼 → 写字（缺工具的
   } finally {
     await rm(root, { recursive: true, force: true })
   }
+})
+
+test('listImages：只列图片、新的在前、坏目录不抛', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'canvas-list-'))
+  try {
+    const fsp = await import('node:fs/promises')
+    await fsp.writeFile(join(dir, 'a.png'), 'x')
+    await fsp.writeFile(join(dir, 'b.txt'), 'x')
+    await new Promise((r) => setTimeout(r, 20))
+    await fsp.writeFile(join(dir, 'c.jpg'), 'y')
+    const rows = await listImages(dir)
+    assert.equal(rows.length, 2)
+    assert.equal(rows[0].name, 'c.jpg')
+  } finally {
+    await rm(dir, { recursive: true, force: true })
+  }
+  assert.deepEqual(await listImages(join(tmpdir(), 'no-such-dir-xyz')), [])
 })
