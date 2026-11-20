@@ -1,0 +1,18 @@
+{
+  "name": "dsh-fish-canvas",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "给大肥鱼一把改图的刀：裁出一块、在图上写一行字、把几张拼在一起（只读本地图，产物落在数据目录）。",
+  "keywords": ["dsh-plugin", "dsh-fish"],
+  "engines": { "dsh": ">=0.2.0-rc.1 <0.3.0-0" },
+  "main": "lib/index.js",
+  "exports": {
+    ".": "./lib/index.js",
+    "./package.json": "./package.json"
+  },
+  "scripts": { "test": "node --test" },
+  "files": ["lib", "cordis.patch.yml", "README.md"],
+  "dependencies": {},
+  "license": "MIT"
+}

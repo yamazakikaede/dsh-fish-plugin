@@ -8,20 +8,22 @@
 |---|---|---|
 | [`dsh-fish-mirror`](dsh-fish-mirror/) | `her_mirror` | 照镜子：只读 `<数据目录>/avatar.*`（退 `mirror.*`），把路径交给她自己用 `read_image` 看。没有图就照实说「镜子里是空的」。 |
 | [`dsh-fish-tts`](dsh-fish-tts/) | `her_micro` | 说一句：按情绪合成语音，回一行 ` ```fish-voice ` 围栏，对话里出现可点的播放器。支持本地 macOS `say` 与 OpenAI 兼容 TTS 接口。 |
+| [`dsh-fish-canvas`](dsh-fish-canvas/) | `her_canvas` | 改图：裁出一块、在图上写一行字、把 2–6 张拼在一起（ffmpeg 裁拼 + macOS `swift` 写字），成品落在数据目录 `canvas/` 下。 |
 
-两个插件都不 import 主包模块，主包升级不会影响它们。
+三个插件都不 import 主包模块，主包升级不会影响它们。
 
 ## 安装
 
 ```sh
 dsh plugin --profile desktop add "link:<本仓库>/dsh-fish-mirror"
 dsh plugin --profile desktop add "link:<本仓库>/dsh-fish-tts"
+dsh plugin --profile desktop add "link:<本仓库>/dsh-fish-canvas"
 ```
 
-再把两个工具名写进 dsh-fish 的 `config.json`：
+再把三个工具名写进 dsh-fish 的 `config.json`：
 
 ```json
-{ "tools": { "allow": ["her_mirror", "her_micro"] } }
+{ "tools": { "allow": ["her_mirror", "her_micro", "her_canvas"] } }
 ```
 
 （设置页「手上能用什么 → 白名单」里加也行。）重启 DSH 一次，宿主侧的工具与路由才会装配。
@@ -47,6 +49,7 @@ dsh plugin --profile desktop add "link:<本仓库>/dsh-fish-tts"
 
 - **不写她的数据**：不碰 `events.jsonl`、不改 `config.json` 的人格键、不动 `state.json` / `她的身份.md`。镜子只读头像；语音只往 `<数据目录>/voice/` 落产物（是她说出口的东西，不是她的状态）。
 - **没有人格入口**：两个工具都只做「多一种能做的事」。
+- **改图只动本地**：`her_canvas` 只读数据目录与临时目录里的图，成品写在 `canvas/` 下；裁拼用 ffmpeg，写字用 macOS 自带的 swift，不出网。
 - **外发只说清**：`her_micro` 用本地 `say` 时不出网；用 OpenAI 兼容接口时，只把**她要说的那句话**发到你配置的端点，不发事件流/日记/历史。
 - **零依赖、无安装脚本、各带 `node:test`**。
 
